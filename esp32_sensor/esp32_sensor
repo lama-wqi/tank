@@ -1,0 +1,196 @@
+/*
+  TANK — ESP32 + HC-SR04 + ثلاث لمبات + بازر
+  يحافظ على اتصال السيرفر وواجهة TANK الحالية، ويضيف مؤشرات محلية حسب المسافة.
+
+  التوصيلات:
+    HC-SR04: VCC -> 5V, GND -> GND, TRIG -> GPIO 5
+    HC-SR04: ECHO -> GPIO 18 عبر مقسّم جهد يخفض 5V إلى 3.3V (ضروري لحماية ESP32)
+    LED الأخضر -> GPIO 21 عبر مقاومة 220-330 أوم إلى GND
+    LED الأصفر -> GPIO 22 عبر مقاومة 220-330 أوم إلى GND
+    LED الأحمر -> GPIO 23 عبر مقاومة 220-330 أوم إلى GND
+    البازر الفعّال Active Buzzer -> GPIO 19 و GND
+
+  منطق المسافة:
+    أكبر من 4 سم: الأخضر يعمل، الأصفر والأحمر والبازر متوقفون.
+    من 2.5 إلى 4 سم (شاملًا): الأصفر يعمل والبازر يصدر تنبيهًا متقطعًا.
+    أقل من 2.5 سم: الأحمر يعمل والبازر يعمل باستمرار.
+    القراءة غير الصالحة: جميع اللمبات والبازر متوقفة.
+
+  ملاحظة: يجب أن يكون الكمبيوتر الذي يشغّل server.py والـ ESP32 على نفس شبكة الراوتر.
+*/
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+// ======== عدّل هذه القيم حسب شبكتك ========
+const char* WIFI_SSID  = "Zain-4G";
+const char* WIFI_PASS  = "DBLia_707";
+const char* SERVER_URL = "http://192.168.1.21:3000/api/sensor/reading"; // IP الكمبيوتر المشغّل للسيرفر
+const char* DEVICE_ID  = "TANK-0001";            // نفس DEVICE_ID في config.py
+const char* DEVICE_KEY = "CHANGE-ME-123456";     // نفس DEVICE_KEY في config.py
+const unsigned long SEND_EVERY_MS = 5000;
+// ==========================================
+
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+const int GREEN_LED_PIN = 21;
+const int YELLOW_LED_PIN = 22;
+const int RED_LED_PIN = 23;
+const int BUZZER_PIN = 19;
+
+const float YELLOW_MIN_CM = 2.5f;
+const float YELLOW_MAX_CM = 4.0f;
+const unsigned long YELLOW_BEEP_INTERVAL_MS = 300;
+
+unsigned long lastSendMs = 0;
+unsigned long lastBeepToggleMs = 0;
+bool beepState = false;
+float latestDistanceCm = -1.0f;
+
+enum TankState { SENSOR_ERROR, NORMAL_LEVEL, WARNING_LEVEL, DANGER_LEVEL };
+TankState tankState = SENSOR_ERROR;
+
+float readDistanceCm() {
+  float samples[5];
+  int count = 0;
+
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(3);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+
+    unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000UL);
+    if (duration > 0) {
+      float cm = duration * 0.0343f / 2.0f;
+      if (cm >= 2.0f && cm <= 400.0f) samples[count++] = cm;
+    }
+    delay(20);
+  }
+
+  if (count == 0) return -1.0f;
+
+  // ترتيب القراءات واستخدام الوسيط لتقليل أثر القراءات الشاذة
+  for (int i = 0; i < count - 1; i++) {
+    for (int j = i + 1; j < count; j++) {
+      if (samples[j] < samples[i]) {
+        float temp = samples[i];
+        samples[i] = samples[j];
+        samples[j] = temp;
+      }
+    }
+  }
+  return samples[count / 2];
+}
+
+void connectWiFi() {
+  if (WiFi.status() == WL_CONNECTED) return;
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("جارٍ الاتصال بالواي فاي");
+  for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) {
+    delay(500);
+    Serial.print('.');
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(" تم الاتصال");
+    Serial.print("IP ESP32: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println(" فشل الاتصال؛ ستتم إعادة المحاولة");
+  }
+}
+
+void updateOutputs(float distanceCm) {
+  if (distanceCm < 0) {
+    tankState = SENSOR_ERROR;
+  } else if (distanceCm < YELLOW_MIN_CM) {
+    tankState = DANGER_LEVEL;
+  } else if (distanceCm <= YELLOW_MAX_CM) {
+    tankState = WARNING_LEVEL;
+  } else {
+    tankState = NORMAL_LEVEL;
+  }
+
+  digitalWrite(GREEN_LED_PIN, tankState == NORMAL_LEVEL ? HIGH : LOW);
+  digitalWrite(YELLOW_LED_PIN, tankState == WARNING_LEVEL ? HIGH : LOW);
+  digitalWrite(RED_LED_PIN, tankState == DANGER_LEVEL ? HIGH : LOW);
+
+  if (tankState == DANGER_LEVEL) {
+    digitalWrite(BUZZER_PIN, HIGH); // تنبيه مستمر
+    beepState = true;
+  } else if (tankState != WARNING_LEVEL) {
+    digitalWrite(BUZZER_PIN, LOW);
+    beepState = false;
+  }
+}
+
+void updateBuzzerPattern() {
+  if (tankState != WARNING_LEVEL) return;
+  unsigned long now = millis();
+  if (now - lastBeepToggleMs >= YELLOW_BEEP_INTERVAL_MS) {
+    lastBeepToggleMs = now;
+    beepState = !beepState;
+    digitalWrite(BUZZER_PIN, beepState ? HIGH : LOW);
+  }
+}
+
+void sendReading(float distanceCm) {
+  if (distanceCm <= 0 || WiFi.status() != WL_CONNECTED) return;
+
+  // الاحتفاظ بحقل pump للتوافق مع قاعدة البيانات والواجهة الحالية؛ لا يوجد دخل مضخة في هذا التعديل.
+  char body[160];
+  snprintf(body, sizeof(body), "{\"deviceId\":\"%s\",\"distance_cm\":%.1f,\"pump\":false}", DEVICE_ID, distanceCm);
+
+  HTTPClient http;
+  http.setTimeout(4000);
+  http.begin(SERVER_URL);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Device-Key", DEVICE_KEY);
+  int code = http.POST(body);
+  Serial.printf("المسافة: %.1f سم | حالة المؤشرات: %s | رد السيرفر: %d\n",
+                distanceCm,
+                tankState == NORMAL_LEVEL ? "طبيعي/أخضر" :
+                tankState == WARNING_LEVEL ? "تحذير/أصفر" :
+                tankState == DANGER_LEVEL ? "خطر/أحمر" : "قراءة غير صالحة",
+                code);
+  http.end();
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(GREEN_LED_PIN, OUTPUT);
+  pinMode(YELLOW_LED_PIN, OUTPUT);
+  pinMode(RED_LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  digitalWrite(TRIG_PIN, LOW);
+  digitalWrite(GREEN_LED_PIN, LOW);
+  digitalWrite(YELLOW_LED_PIN, LOW);
+  digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  connectWiFi();
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) connectWiFi();
+
+  latestDistanceCm = readDistanceCm();
+  updateOutputs(latestDistanceCm);
+  updateBuzzerPattern();
+
+  unsigned long now = millis();
+  if (now - lastSendMs >= SEND_EVERY_MS) {
+    lastSendMs = now;
+    sendReading(latestDistanceCm);
+  }
+
+  // تحديث نمط البازر الأصفر دون تعطيل الحلقة لعدة ثوانٍ
+  for (int i = 0; i < 5; i++) {
+    updateBuzzerPattern();
+    delay(10);
+  }
+}
