@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#06192e">
+<title>تانك | TANK</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+<div class="phone">
+
+  <div id="splash"><div class="drop">💧</div><h1>تانك</h1><b class="en">TANK</b></div>
+
+  <section id="onb" class="screen hidden">
+    <button class="link skip" id="skip">تخطي</button>
+    <div class="slide"><div class="big" id="oIcon"></div><h2 id="oTitle"></h2><p id="oText"></p></div>
+    <div class="dots" id="dots"></div>
+    <button class="btn" id="oNext">التالي</button>
+  </section>
+
+  <section id="auth" class="screen hidden">
+    <div class="hero"><div class="drop">💧</div><h1>تانك</h1><b class="en">TANK</b><p>اعرف مستوى مياه خزانك قبل ما تنقطع</p></div>
+    <div class="tabs"><button class="tab active" data-f="login">دخول</button><button class="tab" data-f="register">حساب جديد</button></div>
+    <form id="loginForm" class="form">
+      <label>البريد الإلكتروني<input type="email" id="lEmail" required autocomplete="email"></label>
+      <label>كلمة المرور<input type="password" id="lPass" required autocomplete="current-password"></label>
+      <p class="err" id="lErr"></p>
+      <button class="btn" type="submit">دخول</button>
+    </form>
+    <form id="registerForm" class="form hidden">
+      <label>الاسم<input type="text" id="rName" required></label>
+      <label>البريد الإلكتروني<input type="email" id="rEmail" required autocomplete="email"></label>
+      <label>كلمة المرور (6 أحرف على الأقل)<input type="password" id="rPass" minlength="6" required autocomplete="new-password"></label>
+      <p class="err" id="rErr"></p>
+      <button class="btn" type="submit">إنشاء الحساب</button>
+    </form>
+  </section>
+
+  <div id="app" class="hidden">
+    <!-- الرئيسية -->
+    <section class="view active" id="v-home">
+      <header class="bar"><div><small id="hello">أهلاً</small><h2>خزانك الآن</h2></div><span class="conn" id="conn">غير متصل</span></header>
+      <div class="aqua">
+        <div class="water" id="water"><i class="wave"></i><i class="wave b"></i><s></s><s></s><s></s><s></s><s></s></div>
+        <div class="pct"><div><b id="pct">--</b><span>%</span></div><small id="liters"></small></div>
+      </div>
+      <div class="state"><b id="status">جاري القراءة…</b><p id="hint"></p></div>
+      <div class="chips3">
+        <div><small>الكمية</small><b id="cLiters">--</b></div>
+        <div><small>يكفي</small><b id="cLeft">--</b></div>
+        <div><small>الدينمو</small><b id="cPump">--</b></div>
+      </div>
+      <div class="card"><b>🔮 التوقّع الذكي</b><p id="predText" class="meta"></p><p id="orderText" class="best"></p>
+        <button class="btn" id="orderBtn">اطلب صهريج</button></div>
+      <div class="card row"><div class="pumpico" id="pumpIcon">⚙️</div><div class="grow"><b id="pumpState">الدينمو</b><p class="meta" id="pumpNote"></p></div></div>
+      <div class="card tipc"><b>💡 نصيحة اليوم</b><p class="meta" id="tip"></p></div>
+    </section>
+
+    <!-- الإحصائيات -->
+    <section class="view" id="v-stats">
+      <header class="bar"><h2>الإحصائيات</h2></header>
+      <div class="chipbar" id="rangeChips"><button class="chip" data-h="6">6 ساعات</button><button class="chip active" data-h="24">24 ساعة</button><button class="chip" data-h="168">أسبوع</button></div>
+      <div class="card"><canvas id="chart" height="220"></canvas><p class="meta" id="chartEmpty">لا توجد قراءات بعد.</p></div>
+      <div class="tiles">
+        <div class="card"><small>استهلاك</small><b id="sUse">--</b><em>لتر</em></div>
+        <div class="card"><small>تعبئات</small><b id="sFill">--</b><em>مرة</em></div>
+        <div class="card"><small>المعدل</small><b id="sRate">--</b><em>%/ساعة</em></div>
+      </div>
+    </section>
+
+    <!-- التنبيهات -->
+    <section class="view" id="v-alerts">
+      <header class="bar"><h2>التنبيهات</h2><button class="link" id="clearAlerts">مسح الكل</button></header>
+      <div class="chipbar" id="filterChips"><button class="chip active" data-k="all">الكل</button><button class="chip" data-k="water">المياه</button><button class="chip" data-k="pump">الدينمو</button></div>
+      <ul class="alerts" id="alertList"></ul>
+      <div class="emptyst" id="alertEmpty"><div>🌊</div><b>كل شيء تمام</b><p class="meta">ما فيه تنبيهات حالياً.</p></div>
+    </section>
+
+    <!-- حسابي -->
+    <section class="view" id="v-me">
+      <header class="bar"><h2>حسابي</h2></header>
+      <div class="card row prof"><div class="avatar" id="avatar">ت</div><div class="grow"><b id="meName"></b><p class="meta" id="meMail"></p></div></div>
+      <div class="card devc"><div class="row"><div class="grow"><b>جهاز الحساس</b><p class="meta" id="devState"></p></div><span class="dotl" id="devDot"></span></div>
+        <button class="btn ghost" data-act="device">ربط / تعديل الجهاز</button></div>
+      <div class="rows">
+        <button data-act="tank"><i>🛢</i>إعدادات الخزان<em>‹</em></button>
+        <button data-act="alerts"><i>🔔</i>حدود التنبيه والاهتزاز<em>‹</em></button>
+        <button data-act="suppliers"><i>🚚</i>موردو الصهاريج<em>‹</em></button>
+        <button data-act="notif"><i>📲</i>تفعيل إشعارات الجهاز<em>‹</em></button>
+        <button data-act="logout" class="out"><i>⎋</i>تسجيل الخروج<em>‹</em></button>
+      </div>
+      <p class="meta center">تانك TANK · الإصدار 1.0</p>
+    </section>
+
+    <nav class="nav" id="nav">
+      <a href="#home" data-p="home"><i>🏠</i>الرئيسية</a>
+      <a href="#stats" data-p="stats"><i>📊</i>الإحصائيات</a>
+      <button class="fab" id="fab" aria-label="اطلب صهريج">🚚</button>
+      <a href="#alerts" data-p="alerts"><i>🔔</i>التنبيهات<em id="badge" class="hidden">0</em></a>
+      <a href="#me" data-p="me"><i>👤</i>حسابي</a>
+    </nav>
+  </div>
+
+  <div id="sheet" class="sheet"><div class="scrim" id="scrim"></div>
+    <div class="panel"><i class="grab"></i><h3 id="sheetTitle"></h3><div id="sheetBody"></div></div></div>
+  <div id="toast" class="toast"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
