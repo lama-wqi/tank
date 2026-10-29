@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة إدارة تانك</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--abyss:#06192e;--deep:#0b3a66;--lagoon:#1b7fc4;--surf:#5cc8f0;--foam:#e8f7fd;--danger:#ff5a4f;--line:rgba(232,247,253,.14);--glass:rgba(255,255,255,.06)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',system-ui,sans-serif;background:var(--abyss);color:var(--foam);min-height:100vh}
+button,input{font:inherit;color:inherit}
+.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:20px}
+.box{width:100%;max-width:360px;background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:28px;text-align:center}
+.box h1{font-size:28px;margin-bottom:4px}.box p{opacity:.7;margin-bottom:18px;font-size:14px}
+input{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.btn{background:linear-gradient(135deg,var(--lagoon),var(--surf));color:var(--abyss);border:0;border-radius:12px;padding:12px 18px;font-weight:800;cursor:pointer}
+.btn.sm{padding:6px 12px;font-size:13px;border-radius:9px}.btn.red{background:var(--danger);color:#fff}.btn.gh{background:var(--glass);color:var(--foam);border:1px solid var(--line)}
+.err{color:#ffb4ae;min-height:20px;font-size:14px;margin-bottom:8px}
+.layout{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+aside{background:#04121f;border-left:1px solid var(--line);padding:18px 12px}
+aside h2{font-size:20px;padding:0 8px 12px}
+aside button{display:flex;justify-content:space-between;width:100%;background:none;border:0;padding:11px 12px;border-radius:10px;cursor:pointer;text-align:right;margin-bottom:4px}
+aside button.on{background:var(--lagoon)}aside button:hover:not(.on){background:var(--glass)}
+aside em{font-style:normal;opacity:.7;font-size:13px}
+main{padding:22px;overflow:auto}
+.tools{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}.tools input{max-width:280px;margin:0}.tools h2{margin-left:auto}
+.wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{background:var(--deep);text-align:right;padding:10px 12px;white-space:nowrap;position:sticky;top:0}
+td{padding:9px 12px;border-top:1px solid var(--line);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr:hover td{background:var(--glass)}
+.pager{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:14px}
+.muted{opacity:.6}
+@media(max-width:700px){.layout{grid-template-columns:1fr}aside{display:flex;overflow:auto;gap:6px;border:0}aside h2{display:none}aside button{width:auto;white-space:nowrap}}
+</style>
+</head>
+<body>
+<div class="login" id="login">
+  <form class="box" id="lf">
+    <h1>🛠 لوحة الإدارة</h1><p>تانك TANK</p>
+    <input type="password" id="pw" placeholder="كلمة مرور المدير" required autofocus>
+    <div class="err" id="err"></div>
+    <button class="btn" style="width:100%">دخول</button>
+  </form>
+</div>
+
+<div class="layout hidden" id="panel">
+  <aside>
+    <h2>💧 تانك — قاعدة البيانات</h2>
+    <div id="tabs"></div>
+    <button id="out" style="margin-top:14px;color:#ffb4ae">تسجيل الخروج</button>
+  </aside>
+  <main>
+    <div class="tools">
+      <input id="q" placeholder="بحث…">
+      <button class="btn sm gh" id="refresh">تحديث</button>
+      <h2 id="title"></h2>
+    </div>
+    <div class="wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+    <p class="muted" id="empty" style="text-align:center;margin-top:20px">لا توجد بيانات.</p>
+    <div class="pager"><button class="btn sm gh" id="next">السابق ›</button><span id="pinfo" class="muted"></span><button class="btn sm gh" id="prev">‹ التالي</button></div>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NAMES = { users: 'المستخدمون', devices: 'الأجهزة (الحساسات)', readings: 'قراءات الحساس', alerts: 'التنبيهات', settings: 'الإعدادات' };
+const HEAD = { id: '#', name: 'الاسم', email: 'البريد', created_at: 'تاريخ التسجيل', device: 'الجهاز', alerts: 'التنبيهات', device_id: 'رقم الجهاز', owner: 'المالك', owner_email: 'بريد المالك', readings: 'القراءات', last_seen: 'آخر اتصال', ts: 'الوقت', distance_cm: 'المسافة (سم)', level: 'المستوى', pump: 'الدينمو', user: 'المستخدم', type: 'النوع', msg: 'الرسالة', data: 'البيانات' };
+const TIME = ['ts', 'created_at', 'last_seen'];
+let token = null; try { token = sessionStorage.getItem('adm'); } catch {}
+let cur = 'users', page = 1, total = 0, timer;
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch('/api/admin' + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401 && token) { out(); }
+  if (!r.ok) throw new Error(d.message || 'خطأ');
+  return d;
+}
+function out() { token = null; try { sessionStorage.removeItem('adm'); } catch {} $('panel').classList.add('hidden'); $('login').classList.remove('hidden'); }
+$('out').onclick = out;
+$('lf').onsubmit = async e => {
+  e.preventDefault(); $('err').textContent = '';
+  try { token = (await api('/login', 'POST', { password: $('pw').value })).token; try { sessionStorage.setItem('adm', token); } catch {} open(); }
+  catch (x) { $('err').textContent = x.message; }
+};
+async function open() {
+  $('login').classList.add('hidden'); $('panel').classList.remove('hidden');
+  try {
+    const o = await api('/overview');
+    $('tabs').replaceChildren(...Object.keys(NAMES).map(t => { const b = document.createElement('button'); b.dataset.t = t; b.classList.toggle('on', t === cur);
+      b.innerHTML = '<span></span><em></em>'; b.firstChild.textContent = NAMES[t]; b.lastChild.textContent = o[t]; b.onclick = () => { cur = t; page = 1; $('q').value = ''; open(); }; return b; }));
+    load();
+  } catch {}
+}
+function cell(col, v) {
+  if (v === null || v === undefined) return '—';
+  if (TIME.includes(col) && typeof v === 'number') return new Date(v).toLocaleString('ar-SA');
+  if (col === 'pump') return v ? 'يعمل' : 'متوقف';
+  return String(v);
+}
+async function load() {
+  const d = await api(`/table/${cur}?page=${page}&q=${encodeURIComponent($('q').value)}`);
+  total = d.total; $('title').textContent = `${NAMES[cur]} (${d.total})`;
+  const hr = document.createElement('tr');
+  d.columns.forEach(c => { const th = document.createElement('th'); th.textContent = HEAD[c] || c; hr.append(th); });
+  if (cur === 'users' || cur === 'devices') hr.append(Object.assign(document.createElement('th'), { textContent: 'إجراء' }));
+  $('thead').replaceChildren(hr);
+  $('tbody').replaceChildren(...d.rows.map(r => {
+    const tr = document.createElement('tr');
+    r.forEach((v, i) => { const td = document.createElement('td'); td.textContent = cell(d.columns[i], v); td.title = td.textContent; tr.append(td); });
+    if (cur === 'users') tr.append(act('حذف', 'red', async () => { if (confirm(`حذف المستخدم "${r[1]}" وكل بياناته؟ لا يمكن التراجع.`)) { await api('/users/' + r[0], 'DELETE'); open(); } }));
+    if (cur === 'devices') tr.append(act('فك الربط', 'gh', async () => { if (confirm('فك ربط الجهاز عن مالكه؟')) { await api(`/devices/${r[0]}/unlink`, 'POST'); open(); } }));
+    return tr;
+  }));
+  $('empty').classList.toggle('hidden', d.rows.length > 0);
+  const pages = Math.max(1, Math.ceil(total / d.per));
+  $('pinfo').textContent = `صفحة ${page} من ${pages}`;
+  $('next').disabled = page <= 1; $('prev').disabled = page >= pages;
+}
+function act(label, cls, fn) { const td = document.createElement('td'); const b = document.createElement('button'); b.className = 'btn sm ' + cls; b.textContent = label; b.onclick = () => fn().catch(e => alert(e.message)); td.append(b); return td; }
+$('next').onclick = () => { page--; load(); }; $('prev').onclick = () => { page++; load(); };
+$('refresh').onclick = open;
+$('q').oninput = () => { clearTimeout(timer); timer = setTimeout(() => { page = 1; load(); }, 300); };
+if (token) open();
+</script>
+</body>
+</html>
