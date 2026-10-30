@@ -13,9 +13,9 @@ PUBLIC = os.path.realpath(os.path.join(BASE, "public"))
 DB_PATH = os.path.join(BASE, config.DB_FILE)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 ALERT_TYPES = {"crit", "warn", "danger", "pump", "good"}
-DEFAULTS = {"tankHeight": 150, "deadZone": 20, "capacity": 1000, "low": 40, "crit": 20,
+DEFAULTS = {"tankHeight": 37, "deadZone": 20, "capacity": 35, "low": 40, "crit": 20,
             "repeatMin": 1, "vibrate": True, "suppliers": []}
-NUM_RULES = {"tankHeight": (20, 1000), "deadZone": (0, 200), "capacity": (50, 100000),
+NUM_RULES = {"tankHeight": (20, 1000), "deadZone": (0, 200), "capacity": (20, 100000),
              "low": (5, 90), "crit": (1, 80), "repeatMin": (1, 120)}
 NOW = lambda: int(time.time() * 1000)
 _login_fails = {}
